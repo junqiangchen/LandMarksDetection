@@ -29,4 +29,5 @@ def train():
     detection.train(imagedata, maskdata, "resnet.pd", "log\\L2-loss\\", 0.001, 0.5, 300, 1, [6, 7])
 
 
+
 train()
