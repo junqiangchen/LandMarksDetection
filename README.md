@@ -1,5 +1,5 @@
 # LandMarksDetection
-> This is an example of the X-ray hand landmarks detection
+> This is an example of the X-ray hand landmarks detection with heatmap regression
 
 ## Prerequisities
 The following dependencies are needed:
