@@ -17,5 +17,6 @@ def inference():
     coords_pos, coords_val = detection.inference(test_path)
     print(coords_pos)
 
+    
 
 inference()
