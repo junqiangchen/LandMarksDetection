@@ -51,11 +51,12 @@ def resizeimageandlandmarks(itkimage, shape, landmarkdata):
     # step 1 rezie image to shape size
     rezieitkimage = resize_image_itk(itkimage, newSize=shape)
     # step 2 convert landmark points to image,and resample to shape size
-    image_array = sitk.GetArrayFromImage(itkimage)
-    landmarkimage = np.zeros(image_array.shape)
-    landmarkimage = np.transpose(landmarkimage, (1, 0))
-    x_size, y_size = landmarkimage.shape[0], landmarkimage.shape[1]
     numlandmarks = landmarkdata.shape[0]
+    image_array = sitk.GetArrayFromImage(itkimage)
+    landmarkimage = np.zeros((image_array.shape[0],image_array.shape[1],numlandmarks))
+    landmarkimage = np.transpose(landmarkimage, (1, 0, 2))
+    x_size, y_size = landmarkimage.shape[0], landmarkimage.shape[1]
+    
     # step 2.1 set landmark points to image pixel value
     for num in range(numlandmarks):
         x = landmarkdata[num][0]
@@ -64,18 +65,20 @@ def resizeimageandlandmarks(itkimage, shape, landmarkdata):
         x_max = min(x + offset, x_size)
         y_min = max(0, y - offset)
         y_max = min(y + offset, y_size)
-        landmarkimage[x_min:x_max, y_min:y_max] = num + 1
+        landmarkimage[x_min:x_max, y_min:y_max, num] = num + 1
     # step 2.2 resample landmark image
-    landmarkimage = np.transpose(landmarkimage, (1, 0))
-    landmarksitkimage = sitk.GetImageFromArray(landmarkimage)
-    landmarksitkimage.SetSpacing(itkimage.GetSpacing())
-    landmarksitkimage.SetOrigin(itkimage.GetOrigin())
-    landmarksitkimage.SetDirection(itkimage.GetDirection())
-    rezieitklandmarkimage = resize_image_itk(landmarksitkimage, newSize=shape)
-    rezieitklandmarkimage_array = sitk.GetArrayFromImage(rezieitklandmarkimage)
+    landmarkimage = np.transpose(landmarkimage, (1, 0, 2))
+    rezieitklandmarkimage_array=np.zeros((shape[0],shape[1],numlandmarks))
+    for num in range(numlandmarks):
+        landmarksitkimage = sitk.GetImageFromArray(landmarkimage[:, :, num])
+        landmarksitkimage.SetSpacing(itkimage.GetSpacing())
+        landmarksitkimage.SetOrigin(itkimage.GetOrigin())
+        landmarksitkimage.SetDirection(itkimage.GetDirection())
+        rezieitklandmarkimage = resize_image_itk(landmarksitkimage, newSize=shape)
+        rezieitklandmarkimage_array[:, :, num] = sitk.GetArrayFromImage(rezieitklandmarkimage)
     resizelandmarkdata = np.zeros(landmarkdata.shape)
     for num in range(numlandmarks):
-        coords = np.where(rezieitklandmarkimage_array == num + 1)
+        coords = np.where(rezieitklandmarkimage_array[:, :, num] == num + 1)
         y = int(round(np.mean(coords[0])))
         x = int(round(np.mean(coords[1])))
         resizelandmarkdata[num][0] = x
