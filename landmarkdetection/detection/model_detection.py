@@ -2,9 +2,11 @@
 
 '''
 import os
+
 import SimpleITK as sitk
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from .layer import (conv2d, deconv2d, normalizationlayer2d, crop_and_concat2d, resnet_Add,
                     weight_xavier_init, bias_variable, save_images)
 from .utils import normalize, resize_image_itk, reduce_dimension
@@ -352,24 +354,15 @@ class Vnet2dlandmarkdetectionModule(object):
         # 2 reduce dimension image with itk
         src_itkimage = reduce_dimension(src_itkimage)
         # 3 resize to vnet size and predict
+        itkimagesize = src_itkimage.shape
+        offsetx, offsety = self.image_width / itkimagesize[0], self.image_height / itkimagesize[1]
         rezieitkimage = resize_image_itk(src_itkimage, newSize=(self.image_width, self.image_height))
         input_array = sitk.GetArrayFromImage(rezieitkimage)
+        input_array = np.transpose(input_array, (1, 0))
         input_array = normalize(input_array)  # normalize image to mean 0 std 1
         heatmaps_array = self.prediction(input_array)
-        # 4 resize landmarks_array to src image size
-        resizeheatmaps = []
-        for indx in range(heatmaps_array.shape[self.dimension]):
-            heatmap_array = heatmaps_array[:, :, indx]
-            heatmap_itkimage = sitk.GetImageFromArray(heatmap_array)
-            heatmap_itkimage.SetSpacing(rezieitkimage.GetSpacing())
-            heatmap_itkimage.SetOrigin(rezieitkimage.GetOrigin())
-            heatmap_itkimage.SetDirection(rezieitkimage.GetDirection())
-            resizeheatmap_itkimage = resize_image_itk(heatmap_itkimage, newSize=src_itkimage.GetSize())
-            resizeheatmap = sitk.GetArrayFromImage(resizeheatmap_itkimage)
-            resizeheatmaps.append(resizeheatmap)
-        heatmaps = np.stack(resizeheatmaps, axis=self.dimension)
-        # 5 get landmarks from heatmap array
-        # convert (y,x,c) to (x,y,c)
-        heatmaps = np.transpose(heatmaps, (1, 0, 2))
-        coords_array, values_array = self.__get_landmarks(heatmaps)
-        return coords_array, values_array
+        # 4 get landmark coords
+        coords_array, values_array = self.__get_landmarks(heatmaps_array)
+        # 5 resize landmarks_coords to src image size
+        resize_coords_array = np.around(coords_array * np.array((1 / offsetx, 1 / offsety)))
+        return resize_coords_array, values_array
