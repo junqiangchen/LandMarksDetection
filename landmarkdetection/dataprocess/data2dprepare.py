@@ -4,6 +4,7 @@ import pandas as pd
 import math
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 
 def reduce_dimension(image, axis=None):
@@ -45,44 +46,11 @@ def resize_image_itk(itkimage, newSize, resamplemethod=sitk.sitkLinear):
 
 def resizeimageandlandmarks(itkimage, shape, landmarkdata):
     itkimagesize = itkimage.GetSize()
-    offsetx, offsety = itkimagesize[0] / shape[0], itkimagesize[1] / shape[1]
-    offset = math.ceil(max(offsetx, offsety))
-    offset = math.ceil(offset / 2) + 1
+    offsetx, offsety = shape[0] / itkimagesize[0], shape[1] / itkimagesize[1]
     # step 1 rezie image to shape size
     rezieitkimage = resize_image_itk(itkimage, newSize=shape)
-    # step 2 convert landmark points to image,and resample to shape size
-    numlandmarks = landmarkdata.shape[0]
-    image_array = sitk.GetArrayFromImage(itkimage)
-    landmarkimage = np.zeros((image_array.shape[0],image_array.shape[1],numlandmarks))
-    landmarkimage = np.transpose(landmarkimage, (1, 0, 2))
-    x_size, y_size = landmarkimage.shape[0], landmarkimage.shape[1]
-    
-    # step 2.1 set landmark points to image pixel value
-    for num in range(numlandmarks):
-        x = landmarkdata[num][0]
-        y = landmarkdata[num][1]
-        x_min = max(0, x - offset)
-        x_max = min(x + offset, x_size)
-        y_min = max(0, y - offset)
-        y_max = min(y + offset, y_size)
-        landmarkimage[x_min:x_max, y_min:y_max, num] = num + 1
-    # step 2.2 resample landmark image
-    landmarkimage = np.transpose(landmarkimage, (1, 0, 2))
-    rezieitklandmarkimage_array=np.zeros((shape[0],shape[1],numlandmarks))
-    for num in range(numlandmarks):
-        landmarksitkimage = sitk.GetImageFromArray(landmarkimage[:, :, num])
-        landmarksitkimage.SetSpacing(itkimage.GetSpacing())
-        landmarksitkimage.SetOrigin(itkimage.GetOrigin())
-        landmarksitkimage.SetDirection(itkimage.GetDirection())
-        rezieitklandmarkimage = resize_image_itk(landmarksitkimage, newSize=shape)
-        rezieitklandmarkimage_array[:, :, num] = sitk.GetArrayFromImage(rezieitklandmarkimage)
-    resizelandmarkdata = np.zeros(landmarkdata.shape)
-    for num in range(numlandmarks):
-        coords = np.where(rezieitklandmarkimage_array[:, :, num] == num + 1)
-        y = int(round(np.mean(coords[0])))
-        x = int(round(np.mean(coords[1])))
-        resizelandmarkdata[num][0] = x
-        resizelandmarkdata[num][1] = y
+    # step 2 resize landmark to shape size
+    resizelandmarkdata = np.around(landmarkdata * np.array((offsetx, offsety)))
     return rezieitkimage, resizelandmarkdata
 
 
@@ -183,8 +151,6 @@ def LandmarkGeneratorHeatmap(srcimage, lanmarks, sigma=3.0):
     :param sigma:Sigma of Gaussian
     :return:heatmap
     """
-    # convert (y,x)array to (x,y)
-    srcimage = np.transpose(srcimage, (1, 0))
     image_size = np.shape(srcimage)
     stack_axis = len(image_size)
     heatmap_list = []
@@ -192,7 +158,17 @@ def LandmarkGeneratorHeatmap(srcimage, lanmarks, sigma=3.0):
         heatmap_list.append(onelandmarktoheatmap(srcimage, landmark, sigma))
     heatmaps = np.stack(heatmap_list, axis=stack_axis)
     # convert (x,y,c)array to (y,x,c)
-    heatmaps = np.transpose(heatmaps, (1, 0, 2))
+    # max_heat = np.sum(heatmaps, axis=2)
+    # plt.figure("Image")
+    # plt.imshow(srcimage)
+    # plt.axis('on')
+    # plt.title('image')
+    # plt.show()
+    # plt.figure("heatmap")
+    # plt.imshow(max_heat)
+    # plt.axis('on')
+    # plt.title('heatmap')
+    # plt.show()
     return heatmaps
 
 
@@ -214,8 +190,8 @@ def LoadimageandLandmark(csv_file, num_landmarks, dim):
 
 
 def preparedata():
-    path = "data\hand_xray_dataset\images\\"
-    csv_file = "data\landmark.csv"
+    path = "D:\Project\python\\boneproject\\bonelandmarkdetection\dataprocess\data\hand_xray_dataset\images\\"
+    csv_file = "D:\Project\python\\boneproject\\bonelandmarkdetection\dataprocess\data\landmark.csv"
     trainImage = "E:\Data\Bone_CT\landmark\Image"
     trainMask = "E:\Data\Bone_CT\landmark\Mask"
     shape = (512, 512)
@@ -232,10 +208,15 @@ def preparedata():
         # step 4 generate landmarks heatmaps
         # the order is (y,x)
         image_array = sitk.GetArrayFromImage(resize_itkimage)
-        heatmaps = LandmarkGeneratorHeatmap(image_array, resize_landmarks, sigma=15.0)
+        image_array = np.transpose(image_array, (1, 0))
+        heatmaps = LandmarkGeneratorHeatmap(image_array, resize_landmarks, sigma=5.0)
+        # src_image = sitk.GetArrayFromImage(src_itkimage)
+        # src_image = np.transpose(src_image, (1, 0))
+        # heatmaps1 = LandmarkGeneratorHeatmap(src_image, landmarkdata[indx], sigma=5)
         # step 5 normalization the image to mean 0 std 1
         image_array = normalize(image_array)
         # step 6 save image and heatmaps image to file
         gen_image_mask(image_array, heatmaps, indx, trainImage, trainMask)
+
 
 #preparedata()
