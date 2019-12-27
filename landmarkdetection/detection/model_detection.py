@@ -354,7 +354,7 @@ class Vnet2dlandmarkdetectionModule(object):
         # 2 reduce dimension image with itk
         src_itkimage = reduce_dimension(src_itkimage)
         # 3 resize to vnet size and predict
-        itkimagesize = src_itkimage.shape
+        itkimagesize = src_itkimage.GetSize()
         offsetx, offsety = self.image_width / itkimagesize[0], self.image_height / itkimagesize[1]
         rezieitkimage = resize_image_itk(src_itkimage, newSize=(self.image_width, self.image_height))
         input_array = sitk.GetArrayFromImage(rezieitkimage)
